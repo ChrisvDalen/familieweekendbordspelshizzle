@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🎲 Familieweekend Bordspel Scorebord
+# 🎲 Skiteam familieweekendbordspelshizzle
 
 **Wie is écht de bordspelkampioen van de familie? Eindelijk zwart op wit.**
 
