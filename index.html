@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bordspel Scorebord</title>
+<style>
+  :root {
+    --bg: #f6f4ef; --card: #ffffff; --text: #1f2328; --muted: #6b7280;
+    --border: #e3dfd6; --accent: #2f6f4f; --accent-text: #ffffff;
+    --gold: #c9a227; --silver: #9aa0a6; --bronze: #b0703c; --danger: #b42318;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #16181b; --card: #1f2226; --text: #e8e6e3; --muted: #9aa0a6;
+      --border: #2f343a; --accent: #4fa37a; --accent-text: #0e1411; --danger: #f97066;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 900px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 1.6rem; margin: 8px 0 16px; }
+  h2 { font-size: 1.15rem; margin: 0 0 12px; }
+  section { background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px; margin-bottom: 16px; }
+  label { display: block; font-weight: 600; margin: 12px 0 4px; }
+  input[type=text], input[type=date], select {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--bg); color: var(--text); font: inherit; }
+  button { font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--card); color: var(--text); cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  button.link { border: none; background: none; color: var(--danger); padding: 2px 6px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .row > input { flex: 1; min-width: 0; }
+  .players { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px; }
+  .player { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--border);
+    border-radius: 8px; }
+  .player .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .player.off { opacity: .45; }
+  .win { font-size: .85rem; color: var(--muted); display: flex; align-items: center; gap: 4px; }
+  .hint { color: var(--muted); font-size: .9rem; margin: 4px 0; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { font-size: .85rem; color: var(--muted); font-weight: 600; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .medal { display: inline-block; width: 1.6em; text-align: center; font-weight: 700; }
+  .m1 { color: var(--gold); } .m2 { color: var(--silver); } .m3 { color: var(--bronze); }
+  .bar { height: 6px; background: var(--border); border-radius: 3px; min-width: 60px; }
+  .bar > span { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+  .history li { padding: 8px 0; border-bottom: 1px solid var(--border); display: flex; gap: 8px; align-items: baseline; }
+  .history ul { list-style: none; padding: 0; margin: 0; }
+  .history .meta { color: var(--muted); font-size: .85rem; }
+  .history .body { flex: 1; min-width: 0; }
+  .empty { color: var(--muted); font-style: italic; }
+  @media (max-width: 520px) { .barcol { display: none; } th, td { padding: 8px 4px; } }
+  .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: var(--accent);
+    color: var(--accent-text); padding: 8px 16px; border-radius: 8px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<main>
+  <h1>🎲 Familieweekend Bordspel Scorebord</h1>
+
+  <section>
+    <h2>Nieuw potje</h2>
+
+    <label for="game">Spel</label>
+    <input type="text" id="game" list="gameList" placeholder="bijv. Catan" autocomplete="off">
+    <datalist id="gameList"></datalist>
+
+    <label for="date">Datum</label>
+    <input type="date" id="date">
+
+    <label>Wie deden er mee? (vink aan wie er won)</label>
+    <div class="players" id="players"></div>
+    <div class="row" style="margin-top:8px">
+      <input type="text" id="newPlayer" placeholder="Nieuwe speler toevoegen">
+      <button id="addPlayer">Toevoegen</button>
+    </div>
+    <p class="hint">Klik op een naam om mee te doen. Meerdere winnaars kan (gelijkspel of samenwerkingsspel).</p>
+
+    <div class="row" style="margin-top:12px">
+      <button class="primary" id="save">Potje opslaan</button>
+    </div>
+  </section>
+
+  <section>
+    <div class="row" style="justify-content:space-between; margin-bottom:8px">
+      <h2 style="margin:0">Leaderboard</h2>
+      <select id="filter" style="width:auto"></select>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th></th><th>Speler</th><th class="num">Gewonnen</th><th class="num">Potjes</th>
+          <th class="num">Winst %</th><th class="barcol"></th>
+        </tr></thead>
+        <tbody id="board"></tbody>
+      </table>
+    </div>
+    <p class="hint">Gesorteerd op aantal overwinningen, daarna winstpercentage. Alleen potjes waar iemand aan meedeed tellen mee voor diens percentage.</p>
+  </section>
+
+  <section>
+    <h2>Per spel</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Spel</th><th class="num">Potjes</th><th>Meeste overwinningen</th></tr></thead>
+        <tbody id="perGame"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="history">
+    <h2>Geschiedenis</h2>
+    <ul id="history"></ul>
+  </section>
+
+  <section>
+    <h2>Gegevens</h2>
+    <p class="hint">Alles wordt opgeslagen in deze browser op dit apparaat. Exporteer een back-up om het te bewaren of op een ander apparaat te importeren.</p>
+    <div class="row">
+      <button id="export">Exporteren (JSON)</button>
+      <button id="importBtn">Importeren</button>
+      <input type="file" id="importFile" accept="application/json,.json" hidden>
+      <button class="link" id="reset">Alles wissen</button>
+    </div>
+  </section>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+const KEY = 'bordspel-scorebord-v1';
+let state = { players: [], matches: [] };
+const sel = new Map(); // naam -> 'play' | 'win'
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const today = () => new Date().toISOString().slice(0, 10);
+
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { toast('Opslaan in browser mislukt'); }
+}
+function normalise(d) {
+  return {
+    players: Array.isArray(d?.players) ? d.players.filter(p => typeof p === 'string') : [],
+    matches: Array.isArray(d?.matches) ? d.matches.filter(m => m && m.game && Array.isArray(m.players)) : []
+  };
+}
+async function load() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) { state = normalise(JSON.parse(raw)); return; }
+  } catch (e) {}
+  // Geen lokale data: probeer een gedeelde data.json uit de repo als startpunt.
+  try {
+    const r = await fetch('data.json', { cache: 'no-store' });
+    if (r.ok) { state = normalise(await r.json()); save(); }
+  } catch (e) {}
+}
+
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+function games() {
+  return [...new Set(state.matches.map(m => m.game))].sort((a, b) => a.localeCompare(b, 'nl'));
+}
+
+function renderPlayers() {
+  $('players').innerHTML = state.players.length ? state.players.map((p, i) => {
+    const s = sel.get(p);
+    return `<div class="player ${s ? '' : 'off'}" data-i="${i}">
+      <span class="name" data-toggle>${esc(p)}</span>
+      ${s ? `<label class="win" style="margin:0;font-weight:400"><input type="checkbox" data-win ${s === 'win' ? 'checked' : ''}>won</label>` : ''}
+    </div>`;
+  }).join('') : '<span class="empty">Nog geen spelers. Voeg ze hieronder toe.</span>';
+}
+
+function stats(filter) {
+  const ms = filter ? state.matches.filter(m => m.game === filter) : state.matches;
+  const s = {};
+  for (const m of ms) for (const p of m.players) {
+    s[p] ??= { name: p, played: 0, wins: 0 };
+    s[p].played++;
+    if (m.winners.includes(p)) s[p].wins++;
+  }
+  return Object.values(s).sort((a, b) =>
+    b.wins - a.wins || (b.wins / b.played) - (a.wins / a.played) || a.name.localeCompare(b.name, 'nl'));
+}
+
+function renderBoard() {
+  const f = $('filter').value;
+  const rows = stats(f);
+  const max = Math.max(1, ...rows.map(r => r.wins));
+  let rank = 0, prev = null;
+  $('board').innerHTML = rows.length ? rows.map((r, i) => {
+    const key = r.wins + '|' + (r.wins / r.played);
+    if (key !== prev) { rank = i + 1; prev = key; }
+    const medal = rank <= 3 ? ['🥇','🥈','🥉'][rank - 1] : rank;
+    return `<tr><td><span class="medal m${rank}">${medal}</span></td><td>${esc(r.name)}</td>
+      <td class="num"><strong>${r.wins}</strong></td><td class="num">${r.played}</td>
+      <td class="num">${Math.round(100 * r.wins / r.played)}%</td>
+      <td class="barcol"><div class="bar"><span style="width:${100 * r.wins / max}%"></span></div></td></tr>`;
+  }).join('') : '<tr><td colspan="6" class="empty">Nog geen potjes gespeeld.</td></tr>';
+}
+
+function renderFilter() {
+  const cur = $('filter').value;
+  $('filter').innerHTML = '<option value="">Alle spellen</option>' +
+    games().map(g => `<option ${g === cur ? 'selected' : ''}>${esc(g)}</option>`).join('');
+  $('gameList').innerHTML = games().map(g => `<option value="${esc(g)}">`).join('');
+}
+
+function renderPerGame() {
+  const gs = games();
+  $('perGame').innerHTML = gs.length ? gs.map(g => {
+    const st = stats(g);
+    const n = state.matches.filter(m => m.game === g).length;
+    const top = st.length && st[0].wins ? st.filter(r => r.wins === st[0].wins).map(r => esc(r.name)).join(', ') + ` (${st[0].wins})` : '–';
+    return `<tr><td>${esc(g)}</td><td class="num">${n}</td><td>${top}</td></tr>`;
+  }).join('') : '<tr><td colspan="3" class="empty">Nog niets.</td></tr>';
+}
+
+function renderHistory() {
+  const list = state.matches.map((m, i) => ({ m, i })).sort((a, b) => (b.m.date || '').localeCompare(a.m.date || '') || b.i - a.i);
+  $('history').innerHTML = list.length ? list.map(({ m, i }) => `<li>
+      <div class="body"><strong>${esc(m.game)}</strong> — 🏆 ${m.winners.length ? m.winners.map(esc).join(', ') : 'niemand'}
+        <div class="meta">${esc(m.date || '')} · ${m.players.map(esc).join(', ')}</div></div>
+      <button class="link" data-del="${i}" title="Verwijderen">✕</button></li>`).join('')
+    : '<li class="empty">Nog geen potjes.</li>';
+}
+
+function render() { renderPlayers(); renderFilter(); renderBoard(); renderPerGame(); renderHistory(); }
+
+$('players').addEventListener('click', e => {
+  const el = e.target.closest('.player'); if (!el) return;
+  const p = state.players[el.dataset.i];
+  if (e.target.matches('[data-win]')) { sel.set(p, e.target.checked ? 'win' : 'play'); return; }
+  if (e.target.closest('label')) return;
+  sel.has(p) ? sel.delete(p) : sel.set(p, 'play');
+  renderPlayers();
+});
+
+function addPlayer() {
+  const n = $('newPlayer').value.trim();
+  if (!n) return;
+  if (state.players.some(p => p.toLowerCase() === n.toLowerCase())) { toast('Die speler bestaat al'); return; }
+  state.players.push(n); sel.set(n, 'play'); save();
+  $('newPlayer').value = ''; renderPlayers();
+}
+$('addPlayer').onclick = addPlayer;
+$('newPlayer').addEventListener('keydown', e => { if (e.key === 'Enter') addPlayer(); });
+
+$('save').onclick = () => {
+  let game = $('game').value.trim();
+  const existing = games().find(g => g.toLowerCase() === game.toLowerCase());
+  if (existing) game = existing;
+  const players = state.players.filter(p => sel.has(p));
+  const winners = players.filter(p => sel.get(p) === 'win');
+  if (!game) return toast('Vul een spel in');
+  if (players.length < 1) return toast('Kies wie er meededen');
+  if (!winners.length && !confirm('Niemand aangevinkt als winnaar. Toch opslaan?')) return;
+  state.matches.push({ game, date: $('date').value || today(), players, winners });
+  save();
+  for (const p of winners) sel.set(p, 'play'); // zelfde groep blijft staan voor het volgende potje
+  render(); toast('Opgeslagen!');
+};
+
+$('filter').onchange = renderBoard;
+
+$('history').addEventListener('click', e => {
+  const i = e.target.dataset.del; if (i === undefined) return;
+  if (!confirm('Dit potje verwijderen?')) return;
+  state.matches.splice(+i, 1); save(); render();
+});
+
+$('export').onclick = () => {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = `bordspel-scores-${today()}.json`; a.click();
+  URL.revokeObjectURL(a.href);
+};
+$('importBtn').onclick = () => $('importFile').click();
+$('importFile').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const d = normalise(JSON.parse(await f.text()));
+    if (!confirm(`${d.matches.length} potjes importeren? Dit vervangt de huidige gegevens.`)) return;
+    state = d; sel.clear(); save(); render(); toast('Geïmporteerd');
+  } catch (err) { toast('Ongeldig bestand'); }
+  e.target.value = '';
+};
+$('reset').onclick = () => {
+  if (!confirm('Echt alles wissen? Exporteer eerst een back-up!')) return;
+  state = { players: [], matches: [] }; sel.clear(); save(); render();
+};
+
+$('date').value = today();
+load().then(render);
+</script>
+</body>
+</html>
